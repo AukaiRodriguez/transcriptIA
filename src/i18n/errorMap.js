@@ -60,3 +60,18 @@ export function translateTranscribeError(error, t) {
   }
   return error?.message || t('ai_analyze_error_fallback');
 }
+
+/**
+ * Traduce errores lanzados por src/services/realtimeTranscribe.js (instancias
+ * de RealtimeError, con `.code` y `.params`), cayendo de vuelta al mensaje
+ * crudo si no es un RealtimeError conocido.
+ * @param {Error} error
+ * @param {(key: string, vars?: object) => string} t
+ * @returns {string}
+ */
+export function translateRealtimeError(error, t) {
+  if (error?.name === 'RealtimeError' && error.code) {
+    return t(error.code, error.params);
+  }
+  return error?.message || t('ai_analyze_error_fallback');
+}

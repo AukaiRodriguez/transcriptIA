@@ -30,6 +30,8 @@ function App() {
     isSpeaking,
     transcript,
     durationSeconds,
+    audioError,
+    transcriptionSource,
     startRecording,
     stopRecording,
     resetTranscript,
@@ -66,25 +68,44 @@ function App() {
   };
 
   const handleAnalyze = async () => {
-    if (!transcript.trim()) return;
+    // Ya no exigimos que el Web Speech API haya detectado palabras: esa
+    // transcripción en vivo es solo un respaldo/indicador y puede quedar vacía
+    // aunque el audio real sí se haya grabado correctamente (ver useAudioRecorder /
+    // MediaRecorder, que graba desde el primer instante sin depender de detección
+    // de voz). Si no hay ni audio ni transcripción en vivo, no hay nada que analizar.
+    if (!transcript.trim() && durationSeconds === 0) return;
     setView('analyzing');
 
-    // Se usa la transcripción en vivo del navegador como base, pero si hay un
-    // servicio de transcripción precisa configurado, se intenta reemplazarla por
-    // una versión mucho mejor generada a partir del audio real grabado. Si esto
-    // falla por cualquier motivo, seguimos con la transcripción en vivo sin
-    // bloquear al usuario.
+    // Si ya se usó ElevenLabs Scribe v2 Realtime durante la grabación, el
+    // transcript en vivo YA es de calidad Scribe — reprocesar el audio en modo
+    // batch sería redundante (y un gasto de más). Esa mejora solo aplica cuando
+    // se usó el reconocimiento del navegador como respaldo.
     let finalTranscript = transcript;
-    try {
-      const audioBlob = await finalizeAudio();
-      if (audioBlob && isTranscribeConfigured()) {
-        setAnalyzingStage('transcribing');
-        try {
-          const accurate = await transcribeAudio(audioBlob, { language });
-          if (accurate && accurate.trim()) finalTranscript = accurate.trim();
-        } catch (transcribeErr) {
-          console.warn('No se pudo mejorar la transcripción con Scribe, se usa la transcripción en vivo:', translateTranscribeError(transcribeErr, t));
+    if (transcriptionSource !== 'elevenlabs-realtime') {
+      try {
+        const audioBlob = await finalizeAudio();
+        if (audioBlob && isTranscribeConfigured()) {
+          setAnalyzingStage('transcribing');
+          try {
+            const accurate = await transcribeAudio(audioBlob, { language });
+            if (accurate && accurate.trim()) finalTranscript = accurate.trim();
+          } catch (transcribeErr) {
+            console.warn('No se pudo mejorar la transcripción con Scribe, se usa la transcripción en vivo:', translateTranscribeError(transcribeErr, t));
+          }
         }
+      } catch (err) {
+        console.warn('Error finalizando el audio grabado:', err);
+      }
+    }
+
+    try {
+      // Si tras intentar Scribe (o sin tenerlo configurado) seguimos sin texto,
+      // no tiene sentido seguir: se lo informamos al usuario en vez de mandar un
+      // transcript vacío a la IA de resumen.
+      if (!finalTranscript.trim()) {
+        setAiError(t('err_nothing_recorded'));
+        setView('recording');
+        return;
       }
 
       setAnalyzingStage('summarizing');
@@ -215,6 +236,23 @@ function App() {
                 </div>
               </div>
 
+              {/* Error de captura de audio: si esto ocurre, no habrá audio real que
+                  mandar a Scribe v2 — sin este aviso el usuario solo se enteraba al
+                  final (o nunca), viendo un resumen vacío/malo sin saber por qué.
+                  No se condiciona a isRecording: los errores permanentes (permiso
+                  denegado, sin micrófono) apagan isRecording casi de inmediato, y
+                  ocultar el banner justo entonces dejaba al usuario sin explicación. */}
+              {audioError && (
+                <div className="ai-error-banner">
+                  <div className="ai-error-header">{t('audio_error_header')}</div>
+                  <p className="ai-error-detail">
+                    {audioError.startsWith('browser_') || audioError.startsWith('err_realtime_')
+                      ? t(audioError)
+                      : t('audio_error_detail')}
+                  </p>
+                </div>
+              )}
+
               {/* Error */}
               {aiError && (
                 <div className="ai-error-banner">
@@ -244,7 +282,11 @@ function App() {
                   procesada, en la vista "done" / historial / PDF. */}
 
               {/* Analyze button */}
-              {!isRecording && view !== 'done' && transcript && (
+              {/* Se habilita si hubo grabación real (durationSeconds > 0), no si el
+                  Web Speech API llegó a detectar palabras — la detección de voz en
+                  vivo es solo un indicador visual y puede fallar aunque el audio
+                  real sí se haya capturado correctamente. */}
+              {!isRecording && view !== 'done' && (durationSeconds > 0 || transcript.trim()) && (
                 <div className="transcript-footer">
                   <button className="btn-primary btn-analyze" onClick={handleAnalyze}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

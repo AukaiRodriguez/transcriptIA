@@ -30,7 +30,11 @@ export default function History({ userId, onBack }) {
     }
   }, [userId]);
 
+  // Carga los datos al montar (patrón estándar de fetch-on-mount). load() ya
+  // encapsula su propio try/catch/finally; el setState ocurre tras el await
+  // dentro de load(), no de forma síncrona en el cuerpo del efecto.
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
     load();
   }, [load]);
 

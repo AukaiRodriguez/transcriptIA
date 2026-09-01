@@ -44,7 +44,11 @@ export async function transcribeAudio(blob, { language } = {}) {
   }
 
   const form = new FormData();
-  form.append('file', blob, 'recording.webm');
+  // El nombre del archivo debe reflejar el formato real grabado (varía según
+  // navegador: Chrome/Firefox usan webm, Safari usa mp4) — un nombre incorrecto
+  // puede hacer que el servicio de transcripción intente decodificarlo mal.
+  const extension = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+  form.append('file', blob, `recording.${extension}`);
   form.append('model_id', SCRIBE_MODEL);
   // ElevenLabs acepta código ISO 639-1 ('es'/'en'); si no se pasa, autodetecta el idioma.
   if (language) form.append('language_code', language);

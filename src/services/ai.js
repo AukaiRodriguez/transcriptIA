@@ -1,4 +1,11 @@
+const GROQ_API_KEY = (import.meta.env.VITE_GROQ_API_KEY || '').trim();
 const OPENROUTER_API_KEY = (import.meta.env.VITE_OPENROUTER_API_KEY || '').trim();
+
+// Modelo principal: Groq sirve openai/gpt-oss-120b con inferencia muy rápida y
+// buena calidad para este tipo de análisis. Si no hay key de Groq, o si Groq
+// falla por cualquier motivo (sin cuota, error de red, etc.), cada llamada cae
+// automáticamente al conjunto de modelos gratuitos de OpenRouter (ver callModel).
+const GROQ_MODEL = 'openai/gpt-oss-120b';
 
 // Error con código traducible: los textos legibles para el usuario se resuelven
 // en la UI según el idioma elegido (ver src/i18n), en vez de quedar fijos en español.
@@ -16,26 +23,40 @@ function maskedKeyPreview() {
   return `${OPENROUTER_API_KEY.slice(0, 8)}...${OPENROUTER_API_KEY.slice(-4)} (${OPENROUTER_API_KEY.length} caracteres)`;
 }
 
-function validateApiKey() {
-  if (!OPENROUTER_API_KEY) {
+function validateApiKeys() {
+  if (!GROQ_API_KEY && !OPENROUTER_API_KEY) {
     throw new AIError('err_ai_no_key');
   }
-  if (!OPENROUTER_API_KEY.startsWith('sk-or-')) {
+  // Si hay OpenRouter configurado (como respaldo o único proveedor), validamos
+  // su formato — un typo aquí produciría fallos silenciosos en el fallback.
+  if (OPENROUTER_API_KEY && !OPENROUTER_API_KEY.startsWith('sk-or-')) {
     throw new AIError('err_ai_bad_key_format', { preview: maskedKeyPreview() });
   }
 }
 
-// "openrouter/free" es un router que selecciona automáticamente entre los modelos
-// gratuitos disponibles en OpenRouter en cada momento. Evita hardcodear un modelo
-// específico (ej. Gemini) que puede dejar de ser gratis o desaparecer sin aviso.
-const MODEL_FREE = "openrouter/free";
+// "openrouter/free" NO es un modelo real de OpenRouter — los modelos gratis
+// requieren un ID específico terminado en ":free" (ej. "meta-llama/llama-3.3-70b-instruct:free").
+// Usar un ID inexistente hace que OpenRouter falle o devuelva respuestas de mala calidad,
+// que es justo el síntoma reportado (resúmenes malos / errores intermitentes).
+// En su lugar, probamos una lista de modelos gratuitos reales y confiables, en orden
+// de calidad, y pasamos al siguiente si uno falla, está caído o da respuesta basura.
+const FREE_MODELS = [
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "deepseek/deepseek-chat-v3.1:free",
+  "qwen/qwen3-235b-a22b:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+];
 
 // Umbral: por debajo de esto se analiza en una sola llamada (caso normal)
 const WORDS_PER_CHUNK = 3500;
 
 // El límite gratuito de OpenRouter es 20 peticiones/minuto combinadas entre todos
-// los modelos free. Con este intervalo nos quedamos por debajo con margen.
-const DELAY_BETWEEN_CHUNKS_MS = 3500;
+// los modelos free. Si además hay Groq configurado, espaciamos más las llamadas
+// porque su nivel gratuito tiene un límite de ~8,000 tokens/minuto para
+// openai/gpt-oss-120b — bastante ajustado para bloques de este tamaño. Si aun así
+// se excede, esa llamada puntual cae a OpenRouter automáticamente (ver callModel),
+// así que este delay solo reduce cuántas veces pasa eso, no lo garantiza.
+const DELAY_BETWEEN_CHUNKS_MS = GROQ_API_KEY ? 6000 : 3500;
 
 const JSON_SCHEMA_INSTRUCTIONS = `Devuelve un JSON estricto con estas claves exactas:
 {
@@ -61,11 +82,61 @@ Reglas de LONGITUD (muy importantes — este es un resumen ejecutivo, no una ree
 - El resultado completo debe ser considerablemente MÁS CORTO que la transcripción original. Prioriza siempre compresión sobre exhaustividad: es preferible omitir un detalle menor antes que alargar un punto.
 - Responde SOLO el JSON, sin markdown ni explicaciones`;
 
+async function callGroq(prompt, { temperature = 0.3, reasoningEffort = 'medium' } = {}) {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${GROQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature,
+      // 'low' es suficiente para extracción/resumen (no requiere razonamiento
+      // profundo) y consume menos tokens — ayuda a rendir mejor dentro del
+      // límite de tokens/minuto del nivel gratuito de Groq.
+      reasoning_effort: reasoningEffort,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    if (response.status === 401) throw new AIError('err_ai_groq_auth');
+    if (response.status === 429) throw new AIError('err_ai_groq_rate_limit');
+    throw new AIError('err_ai_groq_provider', { detail });
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new AIError('err_ai_no_content');
+  if (looksLikeJunk(text)) {
+    throw new AIError('err_ai_junk_response', { preview: text.trim().slice(0, 100) });
+  }
+  return text;
+}
+
+// Punto único de entrada para pedirle algo al modelo: intenta primero con Groq
+// (openai/gpt-oss-120b) si hay key configurada; si Groq falla por cualquier
+// razón (sin cuota, error de red, rate limit, etc.) cae automáticamente al
+// conjunto de modelos gratuitos de OpenRouter como respaldo. Si no hay key de
+// Groq, va directo al respaldo gratuito.
+async function callModel(prompt, options = {}) {
+  if (GROQ_API_KEY) {
+    try {
+      return await callGroq(prompt, options);
+    } catch (err) {
+      console.warn('Groq falló, usando respaldo gratuito de OpenRouter:', err.message);
+    }
+  }
+  return callOpenRouterWithRetry(prompt, options);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function callOpenRouter(prompt, { temperature = 0.3 } = {}) {
+async function callOpenRouter(prompt, { temperature = 0.3, model } = {}) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -75,7 +146,7 @@ async function callOpenRouter(prompt, { temperature = 0.3 } = {}) {
       "X-Title": "TranscriptIA"
     },
     body: JSON.stringify({
-      model: MODEL_FREE,
+      model,
       messages: [{ role: "user", content: prompt }],
       temperature,
     })
@@ -108,20 +179,21 @@ function looksLikeJunk(text) {
   return false;
 }
 
-// Reintenta la llamada si la respuesta viene vacía/basura — como el router elige
-// un modelo distinto en cada intento, un reintento suele resolverlo solo.
-async function callOpenRouterWithRetry(prompt, options = {}, maxRetries = 2) {
+// Reintenta la llamada si la respuesta viene vacía/basura o el modelo falla —
+// en cada intento se prueba con el siguiente modelo gratuito de la lista, así que
+// si uno está caído, saturado, o da basura, el intento siguiente usa uno distinto.
+async function callOpenRouterWithRetry(prompt, options = {}, models = FREE_MODELS) {
   let lastError;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let i = 0; i < models.length; i++) {
     try {
-      const text = await callOpenRouter(prompt, options);
+      const text = await callOpenRouter(prompt, { ...options, model: models[i] });
       if (looksLikeJunk(text)) {
         throw new AIError('err_ai_junk_response', { preview: text.trim().slice(0, 100) });
       }
       return text;
     } catch (err) {
       lastError = err;
-      if (attempt < maxRetries) {
+      if (i < models.length - 1) {
         await sleep(1500);
       }
     }
@@ -176,11 +248,11 @@ Fragmento:
 """
 ${chunk}
 """`;
-  return callOpenRouterWithRetry(prompt, { temperature: 0.2 });
+  return callModel(prompt, { temperature: 0.2, reasoningEffort: 'low' });
 }
 
 export async function analyzeTranscription(transcript) {
-  validateApiKey();
+  validateApiKeys();
 
   const chunks = splitIntoChunks(transcript);
 
@@ -192,7 +264,7 @@ Transcripción:
 """
 ${transcript}
 """`;
-    const raw = await callOpenRouterWithRetry(prompt);
+    const raw = await callModel(prompt);
     return parseJsonResponse(raw);
   }
 
@@ -219,6 +291,6 @@ ${combinedNotes}
 """`;
 
   await sleep(DELAY_BETWEEN_CHUNKS_MS);
-  const raw = await callOpenRouterWithRetry(finalPrompt);
+  const raw = await callModel(finalPrompt);
   return parseJsonResponse(raw);
 }

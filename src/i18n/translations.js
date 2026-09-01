@@ -63,6 +63,13 @@ export const translations = {
     ai_error_hint: 'Esto suele pasar por una falla temporal del modelo gratuito — tu grabación no se perdió. Intenta de nuevo.',
     ai_retry: '↻ Reintentar análisis',
     ai_analyze_error_fallback: 'Error al analizar. Intenta de nuevo.',
+    err_nothing_recorded: 'No se capturó ningún audio en esta grabación. Verifica los permisos del micrófono e intenta de nuevo.',
+    audio_error_header: '⚠️ No se pudo capturar el audio del micrófono',
+    audio_error_detail: 'Revisa que el micrófono esté conectado y que el navegador tenga permiso para usarlo. La transcripción en vivo puede seguir funcionando, pero la grabación real para el análisis final podría faltar.',
+    'browser_not-allowed': 'El navegador no tiene permiso para usar el micrófono. Revisa el ícono de candado/permmisos junto a la URL y habilita el acceso al micrófono para este sitio, luego recarga la página.',
+    'browser_audio-capture': 'No se detectó ningún micrófono. Conecta uno y recarga la página.',
+    'browser_service-not-allowed': 'El navegador bloqueó el acceso al servicio de reconocimiento de voz (puede ser una política del sistema operativo o del propio navegador).',
+    browser_network: 'El reconocimiento de voz del navegador necesita conexión a internet (envía el audio a servidores de Google para procesarlo). Revisa tu conexión.',
 
     // Analyzing
     analyzing_title: 'Analizando con IA...',
@@ -73,7 +80,7 @@ export const translations = {
     // Mic status
     mic_paused: 'En pausa',
     mic_listening: 'Escuchando...',
-    mic_waiting: 'Esperando sonido...',
+    mic_waiting: 'Grabando...',
 
     // Sidebar / Analysis panel
     sidebar_ai_insights: 'AI Insights',
@@ -100,13 +107,16 @@ export const translations = {
     speech_not_supported: 'Tu navegador no soporta transcripción de voz. Usa Google Chrome o Edge.',
 
     // AI service errors (ai.js)
-    err_ai_no_key: 'API Key de OpenRouter no configurada en .env.local. Consigue una gratis en https://openrouter.ai/keys',
-    err_ai_bad_key_format: 'La API Key no tiene el formato esperado de OpenRouter (debe empezar con "sk-or-"). Valor actual leído: {preview}. Revisa .env.local.',
+    err_ai_no_key: 'No hay ninguna API Key de IA configurada. Configura VITE_GROQ_API_KEY (recomendado, gratis en https://console.groq.com/keys) o VITE_OPENROUTER_API_KEY (respaldo, gratis en https://openrouter.ai/keys) en .env.local.',
+    err_ai_bad_key_format: 'La API Key de OpenRouter no tiene el formato esperado (debe empezar con "sk-or-"). Valor actual leído: {preview}. Revisa .env.local.',
     err_ai_rate_limit: 'Se alcanzó el límite de peticiones gratuitas de OpenRouter (20/min). Espera un minuto e intenta de nuevo.',
     err_ai_provider: 'Error de OpenRouter: {detail}',
-    err_ai_no_content: 'OpenRouter no devolvió contenido en la respuesta.',
+    err_ai_no_content: 'El modelo de IA no devolvió contenido en la respuesta.',
     err_ai_junk_response: 'Respuesta inválida del modelo (posible falla del proveedor gratuito): "{preview}"',
     err_ai_invalid_json: 'La IA devolvió una respuesta que no se pudo interpretar como JSON. Intenta de nuevo (si persiste, prueba grabando algo más corto). Respuesta recibida: "{preview}"',
+    err_ai_groq_auth: 'La API Key de Groq no es válida (VITE_GROQ_API_KEY). Se usó el respaldo gratuito de OpenRouter en su lugar.',
+    err_ai_groq_rate_limit: 'Se alcanzó el límite gratuito de peticiones de Groq. Se usó el respaldo gratuito de OpenRouter en su lugar.',
+    err_ai_groq_provider: 'Error de Groq: {detail}',
 
     // Transcribe service errors (transcribe.js — ElevenLabs Scribe v2)
     err_transcribe_no_key: 'API Key de ElevenLabs no configurada o inválida (VITE_ELEVENLABS_API_KEY). La transcripción precisa está deshabilitada; se usó la transcripción en vivo del navegador.',
@@ -116,6 +126,11 @@ export const translations = {
     err_transcribe_rate_limit: 'Se alcanzó el límite de peticiones del servicio de transcripción. Espera un momento e intenta de nuevo.',
     err_transcribe_provider: 'Error del servicio de transcripción: {detail}',
     err_transcribe_empty_result: 'El servicio de transcripción no devolvió texto.',
+    err_realtime_no_key: 'API Key de ElevenLabs no configurada o inválida (VITE_ELEVENLABS_API_KEY). Se usó el reconocimiento de voz del navegador en su lugar.',
+    err_realtime_network: 'No se pudo conectar con la transcripción en tiempo real. Se usó el reconocimiento de voz del navegador en su lugar.',
+    err_realtime_provider: 'Error de ElevenLabs Realtime: {detail}',
+    err_realtime_rate_limit: 'Se alcanzó el límite de peticiones de ElevenLabs Realtime. Espera un momento.',
+    err_realtime_quota: 'Se agotó la cuota de ElevenLabs Realtime configurada.',
 
     // Language switcher
     language: 'Idioma',
@@ -185,6 +200,13 @@ export const translations = {
     ai_error_hint: 'This is usually caused by a temporary failure of the free model — your recording was not lost. Try again.',
     ai_retry: '↻ Retry analysis',
     ai_analyze_error_fallback: 'Error analyzing. Please try again.',
+    err_nothing_recorded: 'No audio was captured in this recording. Check your microphone permissions and try again.',
+    audio_error_header: '⚠️ Could not capture microphone audio',
+    audio_error_detail: 'Check that your microphone is connected and that the browser has permission to use it. Live transcription may keep working, but the real recording for the final analysis could be missing.',
+    'browser_not-allowed': 'The browser does not have permission to use the microphone. Check the lock/permissions icon next to the URL and allow microphone access for this site, then reload the page.',
+    'browser_audio-capture': 'No microphone was detected. Connect one and reload the page.',
+    'browser_service-not-allowed': 'The browser blocked access to the speech recognition service (this can be an OS-level or browser-level policy).',
+    browser_network: "The browser's speech recognition needs an internet connection (it sends audio to Google's servers to process it). Check your connection.",
 
     // Analyzing
     analyzing_title: 'Analyzing with AI...',
@@ -195,7 +217,7 @@ export const translations = {
     // Mic status
     mic_paused: 'Paused',
     mic_listening: 'Listening...',
-    mic_waiting: 'Waiting for sound...',
+    mic_waiting: 'Recording...',
 
     // Sidebar / Analysis panel
     sidebar_ai_insights: 'AI Insights',
@@ -222,13 +244,16 @@ export const translations = {
     speech_not_supported: "Your browser doesn't support speech transcription. Use Google Chrome or Edge.",
 
     // AI service errors (ai.js)
-    err_ai_no_key: 'OpenRouter API Key not configured in .env.local. Get a free one at https://openrouter.ai/keys',
-    err_ai_bad_key_format: 'The API Key does not have the expected OpenRouter format (it must start with "sk-or-"). Current value read: {preview}. Check .env.local.',
+    err_ai_no_key: 'No AI API Key is configured. Set VITE_GROQ_API_KEY (recommended, free at https://console.groq.com/keys) or VITE_OPENROUTER_API_KEY (fallback, free at https://openrouter.ai/keys) in .env.local.',
+    err_ai_bad_key_format: 'The OpenRouter API Key does not have the expected format (it must start with "sk-or-"). Current value read: {preview}. Check .env.local.',
     err_ai_rate_limit: "OpenRouter's free request limit was reached (20/min). Wait a minute and try again.",
     err_ai_provider: 'OpenRouter error: {detail}',
-    err_ai_no_content: 'OpenRouter did not return any content in the response.',
+    err_ai_no_content: 'The AI model did not return any content in the response.',
     err_ai_junk_response: 'Invalid response from the model (possible failure of the free provider): "{preview}"',
     err_ai_invalid_json: 'The AI returned a response that could not be parsed as JSON. Try again (if it persists, try recording something shorter). Response received: "{preview}"',
+    err_ai_groq_auth: 'The Groq API Key is not valid (VITE_GROQ_API_KEY). The free OpenRouter fallback was used instead.',
+    err_ai_groq_rate_limit: "Groq's free request limit was reached. The free OpenRouter fallback was used instead.",
+    err_ai_groq_provider: 'Groq error: {detail}',
 
     // Transcribe service errors (transcribe.js — ElevenLabs Scribe v2)
     err_transcribe_no_key: 'ElevenLabs API Key not configured or invalid (VITE_ELEVENLABS_API_KEY). Accurate transcription is disabled; the live browser transcription was used instead.',
@@ -238,6 +263,11 @@ export const translations = {
     err_transcribe_rate_limit: 'The transcription service request limit was reached. Wait a moment and try again.',
     err_transcribe_provider: 'Transcription service error: {detail}',
     err_transcribe_empty_result: 'The transcription service did not return any text.',
+    err_realtime_no_key: 'ElevenLabs API Key not configured or invalid (VITE_ELEVENLABS_API_KEY). The browser speech recognition was used instead.',
+    err_realtime_network: 'Could not connect to realtime transcription. The browser speech recognition was used instead.',
+    err_realtime_provider: 'ElevenLabs Realtime error: {detail}',
+    err_realtime_rate_limit: 'ElevenLabs Realtime request limit was reached. Wait a moment.',
+    err_realtime_quota: 'Your configured ElevenLabs Realtime quota ran out.',
 
     // Language switcher
     language: 'Language',
