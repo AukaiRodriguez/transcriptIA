@@ -87,8 +87,15 @@ export const translations = {
     analysis_placeholder: 'Los insights de IA aparecerán aquí al finalizar la grabación.',
     analysis_badge_title: 'Título IA',
     download_summary_pdf: '⬇ Resumen PDF',
+    download_summary_docx: '⬇ Resumen Word',
     download_transcript_pdf: '⬇ Transcripción PDF',
+    download_transcript_docx: '⬇ Transcripción Word',
     suggested_actions: 'Acciones Sugeridas',
+    key_points: 'Puntos Clave',
+    important_points: 'Puntos Importantes',
+    possible_questions: 'Posibles Preguntas',
+    concepts_to_remember: 'Conceptos y Términos a Recordar',
+    final_summary: 'Resumen Final',
     new_recording: '+ Nueva Grabación',
 
     // History
@@ -224,8 +231,15 @@ export const translations = {
     analysis_placeholder: 'AI insights will appear here once the recording is finished.',
     analysis_badge_title: 'AI Title',
     download_summary_pdf: '⬇ Summary PDF',
+    download_summary_docx: '⬇ Summary Word',
     download_transcript_pdf: '⬇ Transcript PDF',
+    download_transcript_docx: '⬇ Transcript Word',
     suggested_actions: 'Suggested Actions',
+    key_points: 'Key Points',
+    important_points: 'Important Points',
+    possible_questions: 'Possible Questions',
+    concepts_to_remember: 'Concepts & Terms to Remember',
+    final_summary: 'Final Summary',
     new_recording: '+ New Recording',
 
     // History

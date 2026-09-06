@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { getTranscriptions, deleteTranscription } from '../services/db';
 import { downloadTranscriptPDF, downloadSummaryPDF } from '../services/pdf';
+import { downloadTranscriptDOCX, downloadSummaryDOCX } from '../services/docx';
 import { formatDuration } from '../utils/format';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -53,6 +54,11 @@ export default function History({ userId, onBack }) {
 
   const secciones = selected?.insights?.secciones || [];
   const acciones = selected?.insights?.acciones || [];
+  const puntosClave = selected?.insights?.puntosClave || [];
+  const puntosImportantes = selected?.insights?.puntosImportantes || [];
+  const preguntas = selected?.insights?.preguntas || [];
+  const conceptos = selected?.insights?.conceptos || [];
+  const resumenFinal = selected?.insights?.resumenFinal || '';
   const durationLabel = selected ? formatDuration(selected.duration_seconds) : null;
 
   return (
@@ -124,15 +130,27 @@ export default function History({ userId, onBack }) {
               <div className="analysis-downloads" style={{marginBottom: '1.25rem'}}>
                 <button
                   className="btn-ghost btn-download"
-                  onClick={() => downloadSummaryPDF({ title: selected.title, date: formatDate(selected.created_at), durationLabel, secciones, acciones })}
+                  onClick={() => downloadSummaryPDF({ title: selected.title, date: formatDate(selected.created_at), durationLabel, secciones, acciones, puntosClave, puntosImportantes, preguntas, conceptos, resumenFinal })}
                 >
                   {t('download_summary_pdf')}
+                </button>
+                <button
+                  className="btn-ghost btn-download"
+                  onClick={() => downloadSummaryDOCX({ title: selected.title, date: formatDate(selected.created_at), durationLabel, secciones, acciones, puntosClave, puntosImportantes, preguntas, conceptos, resumenFinal })}
+                >
+                  {t('download_summary_docx')}
                 </button>
                 <button
                   className="btn-ghost btn-download"
                   onClick={() => downloadTranscriptPDF({ title: selected.title, date: formatDate(selected.created_at), durationLabel, transcript: selected.raw_transcript })}
                 >
                   {t('download_transcript_pdf')}
+                </button>
+                <button
+                  className="btn-ghost btn-download"
+                  onClick={() => downloadTranscriptDOCX({ title: selected.title, date: formatDate(selected.created_at), durationLabel, transcript: selected.raw_transcript })}
+                >
+                  {t('download_transcript_docx')}
                 </button>
               </div>
 
@@ -142,8 +160,54 @@ export default function History({ userId, onBack }) {
                   <ul className="analysis-bullets">
                     {(sec.puntos || []).map((p, j) => <li key={j}>{p}</li>)}
                   </ul>
+                  {(sec.subtemas || []).map((sub, k) => (
+                    <div key={k} style={{ marginLeft: '1rem' }}>
+                      <h5>{sub.encabezado}</h5>
+                      <ul className="analysis-bullets">
+                        {(sub.puntos || []).map((p, j) => <li key={j}>{p}</li>)}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
               ))}
+
+              {puntosClave.length > 0 && (
+                <div className="detail-section">
+                  <h4>⭐ {t('key_points')}</h4>
+                  <ul className="analysis-bullets">
+                    {puntosClave.map((p, i) => <li key={i}>{p}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {puntosImportantes.length > 0 && (
+                <div className="detail-section">
+                  <h4>🎯 {t('important_points')}</h4>
+                  <ul className="analysis-bullets">
+                    {puntosImportantes.map((p, i) => <li key={i}>{p}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {preguntas.length > 0 && (
+                <div className="detail-section">
+                  <h4>❓ {t('possible_questions')}</h4>
+                  <ul className="analysis-bullets">
+                    {preguntas.map((qa, i) => (
+                      <li key={i}><strong>{qa.pregunta}</strong>{qa.respuesta ? ` — ${qa.respuesta}` : ''}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {conceptos.length > 0 && (
+                <div className="detail-section">
+                  <h4>📚 {t('concepts_to_remember')}</h4>
+                  <ul className="analysis-bullets">
+                    {conceptos.map((c, i) => <li key={i}>{c}</li>)}
+                  </ul>
+                </div>
+              )}
 
               {acciones.length > 0 && (
                 <div className="detail-section">
@@ -156,6 +220,13 @@ export default function History({ userId, onBack }) {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {resumenFinal && (
+                <div className="detail-section">
+                  <h4>📝 {t('final_summary')}</h4>
+                  <p className="text-muted">{resumenFinal}</p>
                 </div>
               )}
 

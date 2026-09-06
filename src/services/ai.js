@@ -63,24 +63,39 @@ const JSON_SCHEMA_INSTRUCTIONS = `Devuelve un JSON estricto con estas claves exa
   "titulo": "Título descriptivo y conciso de máximo 8 palabras",
   "idioma": "es o en dependiendo del idioma detectado",
   "secciones": [
-    { "encabezado": "Nombre del tema tratado", "puntos": ["idea 1 en una frase corta", "idea 2 en una frase corta", "..."] }
+    {
+      "encabezado": "Nombre del tema principal tratado (no algo genérico como 'Resumen')",
+      "puntos": ["Idea, explicación, definición o ejemplo relevante", "..."],
+      "subtemas": [
+        { "encabezado": "Nombre del subtema (solo si dentro del tema hay un bloque claramente diferenciado)", "puntos": ["..."] }
+      ]
+    }
   ],
-  "acciones": ["Acción o pendiente sugerido 1", "Acción o pendiente sugerido 2"]
+  "puntosClave": ["Idea central 1 que resume algo importante de todo el contenido", "..."],
+  "puntosImportantes": ["Contenido que el hablante enfatizó explícitamente como relevante"],
+  "preguntas": [
+    { "pregunta": "Posible pregunta de repaso/examen basada en el contenido", "respuesta": "Respuesta breve basada solo en la transcripción" }
+  ],
+  "conceptos": ["Término, autor, obra, fecha o dato puntual que conviene recordar"],
+  "resumenFinal": "Un párrafo breve (3-5 frases) que sintetiza la estructura y las ideas centrales de todo el contenido",
+  "acciones": ["Pendiente, tarea o cosa por confirmar mencionada o que se desprende del contenido"]
 }
 
-Reglas de CONTENIDO:
-- Organiza el contenido en 2-4 "secciones" por tema/bloque temático tratado (no una sola sección genérica). El "encabezado" debe nombrar el tema concreto, no algo genérico como "Resumen".
-- Cada punto en "puntos" debe capturar UNA idea concreta y su porqué en una sola frase — ve directo a lo esencial, sin rodeos ni repetir contexto ya dado en otro punto.
-- No fragmentes una misma idea en varios puntos sueltos; agrupa lo relacionado en un solo punto.
-- "acciones" son pendientes, tareas o cosas por confirmar/estudiar que se mencionaron o se desprenden del contenido. Si no hay ninguna, devuelve un arreglo vacío.
-- Si hay partes incomprensibles, intenta completarlas con contexto lógico.
+METODOLOGÍA — Actúa como alguien que escuchó todo el audio, lo entendió y organizó sus propios apuntes, no como quien hace un resumen superficial:
 
-Reglas de LONGITUD (muy importantes — este es un resumen ejecutivo, no una reescritura):
-- Máximo 3-5 puntos por sección. Si el tema tiene más ideas, elige solo las más importantes.
-- Cada punto: máximo 25 palabras (una o dos frases). Si se te ocurre una explicación más larga, recórtala a lo esencial.
-- Máximo 4 acciones, cada una en una frase corta.
-- El resultado completo debe ser considerablemente MÁS CORTO que la transcripción original. Prioriza siempre compresión sobre exhaustividad: es preferible omitir un detalle menor antes que alargar un punto.
-- Responde SOLO el JSON, sin markdown ni explicaciones`;
+- El contenido debe salir ÚNICAMENTE de la transcripción. No agregues información externa ni conocimiento general que no se haya dicho explícitamente.
+- Conserva prácticamente toda la información relevante: definiciones, explicaciones, ejemplos, comparaciones, diferencias, causas/consecuencias, clasificaciones, nombres propios, fechas y términos técnicos. Esto NO es un resumen breve — es preferible tener apuntes completos antes que un resumen demasiado corto. Prioriza siempre completitud sobre compresión.
+- Organiza "secciones" por tema/bloque temático (nunca una sola sección genérica), reordenando temáticamente si eso mejora la comprensión — no hace falta respetar el orden cronológico exacto del audio.
+- Usa "subtemas" únicamente cuando dentro de un tema principal exista un bloque claramente diferenciado que merezca su propio encabezado; si no aplica, deja el arreglo vacío.
+- Prioriza viñetas cortas y directas sobre párrafos largos. Cada punto en "puntos" debe expresar UNA idea concreta (definición, explicación, ejemplo, dato) — no fragmentes una misma idea en varias viñetas sueltas, pero tampoco la resumas en exceso si tiene matices importantes.
+- Corrige errores evidentes de una transcripción por voz (palabras deformadas, nombres propios mal transcritos) reconstruyéndolos a partir del contexto. NUNCA inventes información para "completar" algo, y nunca escribas placeholders como "[inaudible]" o "[fragmento poco claro]" — si algo no se puede reconstruir con seguridad, reformúlalo de la manera más fiel posible sin inventar contenido nuevo.
+- "puntosClave": 4-8 ideas centrales de todo el contenido, cada una en una frase.
+- "puntosImportantes": SOLO contenido que el hablante remarcó explícitamente (frases tipo "esto es importante", "recuerden", "ojo con...", "esto puede venir en el examen/hay que confirmarlo"). Si no hubo ningún énfasis explícito, devuelve un arreglo vacío.
+- "preguntas": preguntas de repaso con respuesta basada exclusivamente en la transcripción. Si el contenido no se presta a esto (p. ej. una reunión de trabajo sin contenido educativo), devuelve un arreglo vacío — no inventes preguntas sin fundamento.
+- "conceptos": nombres propios, obras, autores, teorías, fechas o términos técnicos mencionados que conviene recordar. Arreglo vacío si no aplica.
+- "acciones": pendientes, tareas o cosas por confirmar/hacer mencionadas o que se desprenden del contenido (típico de reuniones de trabajo). Arreglo vacío si no aplica.
+- "resumenFinal": un párrafo (3-5 frases) que permite recordar rápidamente la estructura y las ideas centrales de todo el contenido.
+- Responde SOLO el JSON, sin markdown ni explicaciones.`;
 
 async function callGroq(prompt, { temperature = 0.3, reasoningEffort = 'medium' } = {}) {
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -240,15 +255,15 @@ function splitIntoChunks(transcript, wordsPerChunk = WORDS_PER_CHUNK) {
 
 // Resume un bloque en notas condensadas (mucho más rápido/liviano que reenviar el bloque completo)
 async function summarizeChunk(chunk, index, total) {
-  const prompt = `Eres un asistente que capta el sentido y los argumentos de una conversación, no solo transcribe datos sueltos. A continuación tienes un fragmento (parte ${index + 1} de ${total}) de una grabación más larga.
+  const prompt = `Eres un asistente que toma apuntes completos de una conversación o clase, no un resumen superficial. A continuación tienes un fragmento (parte ${index + 1} de ${total}) de una grabación más larga.
 
-Identifica SOLO las ideas más importantes de este fragmento (no todas, prioriza) y su porqué, en notas breves tipo viñeta de una frase cada una. No expliques de más ni repitas contexto — estas notas se combinarán después con las de otros fragmentos, así que la brevedad aquí es clave. No inventes información que no esté en el texto.
+Convierte este fragmento en notas organizadas en viñetas, conservando definiciones, explicaciones, ejemplos, comparaciones, nombres propios, fechas y términos técnicos relevantes — no omitas detalles solo por acortar. Corrige errores evidentes de transcripción por voz usando el contexto (palabras deformadas, nombres mal transcritos), pero NO inventes información ni agregues datos externos. Si algo del hablante suena a énfasis explícito ("esto es importante", "recuerden", "ojo con..."), marcalo con [ÉNFASIS] al inicio de esa viñeta. Estas notas se combinarán después con las de otros fragmentos en un documento final, así que priorizá claridad y completitud, no brevedad extrema.
 
 Fragmento:
 """
 ${chunk}
 """`;
-  return callModel(prompt, { temperature: 0.2, reasoningEffort: 'low' });
+  return callModel(prompt, { temperature: 0.2, reasoningEffort: 'medium' });
 }
 
 export async function analyzeTranscription(transcript) {
@@ -258,7 +273,7 @@ export async function analyzeTranscription(transcript) {
 
   // Caso normal: grabación corta, una sola llamada
   if (chunks.length <= 1) {
-    const prompt = `Eres un asistente que hace resúmenes ejecutivos: capta el sentido y los argumentos de una conversación o clase, pero los expresa de forma MUY concisa — no es una reescritura ni una explicación extendida, es una compilación de ideas y puntos específicos en el menor texto posible. ${JSON_SCHEMA_INSTRUCTIONS}
+    const prompt = `Eres un asistente que transforma transcripciones en apuntes de estudio o de reunión completos, claros y bien organizados — como los haría alguien que escuchó todo el audio, lo entendió y organizó sus propias notas. No es un resumen superficial ni una reescritura literal. ${JSON_SCHEMA_INSTRUCTIONS}
 
 Transcripción:
 """
@@ -283,7 +298,7 @@ ${transcript}
     .map((s, i) => `--- Bloque ${i + 1} ---\n${s}`)
     .join('\n\n');
 
-  const finalPrompt = `Eres un asistente que hace resúmenes ejecutivos: capta el sentido y los argumentos de una conversación o clase, pero los expresa de forma MUY concisa. A continuación tienes notas condensadas de una grabación larga, divididas en bloques cronológicos. Combínalas en un único análisis coherente y BREVE, conectando las ideas relacionadas entre bloques sin repetir ni extenderte. ${JSON_SCHEMA_INSTRUCTIONS}
+  const finalPrompt = `Eres un asistente que transforma transcripciones en apuntes de estudio o de reunión completos, claros y bien organizados. A continuación tienes notas por bloques de una grabación larga (las líneas marcadas con [ÉNFASIS] indican algo que el hablante remarcó explícitamente como importante). Combínalas en un único documento coherente, reorganizando temáticamente cuando eso mejore la comprensión y conservando prácticamente toda la información relevante — no es un resumen breve, evita perder definiciones, ejemplos o detalles solo por acortar. Elimina únicamente repeticiones reales entre bloques. ${JSON_SCHEMA_INSTRUCTIONS}
 
 Notas por bloques:
 """
